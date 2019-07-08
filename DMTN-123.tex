@@ -15,6 +15,8 @@
 % \setDocSubtitle{A subtitle}
 
 \author{%
+Michelle Gower
+and
 Kian-Tat Lim
 }
 
@@ -24,7 +26,7 @@ Kian-Tat Lim
 \date{\vcsDate}
 
 % Optional: name of the document's curator
-% \setDocCurator{The Curator of this Document}
+\setDocCurator{Michelle Gower}
 
 \setDocAbstract{%
 The LSST DM Batch Production Services are designed to allow large-scale workflows, including the Data Release and Calibration Product Productions, to execute in well-managed fashion, potentially in multiple environments.
@@ -36,7 +38,7 @@ They ensure that provenance is captured and recorded to understand what environm
 % Fields: VERSION, DATE, DESCRIPTION, OWNER NAME.
 % See LPM-51 for version number policy.
 \setDocChangeRecord{%
-  \addtohist{1}{YYYY-MM-DD}{Unreleased.}{Kian-Tat Lim}
+  \addtohist{1}{2019-07-08}{Initial version extracted from LDM-152.}{Kian-Tat Lim}
 }
 
 \begin{document}
@@ -44,8 +46,127 @@ They ensure that provenance is captured and recorded to understand what environm
 % Create the title page.
 \maketitle
 
-% ADD CONTENT HERE
-% You can also use the \input command to include several content files.
+\section{Introduction}\label{introduction}
+
+This document describes the baseline design of the LSST battch production
+services, including the following components:
+
+\begin{itemize}
+	\item Workload/Workflow Management
+	\item Processing Control
+\end{itemize}
+
+Workload and Workflow Management interfaces with the Task Framework from the Data Management Middleware \citedsp{LDM-152} to sequence
+the execution of dataflow graphs across one or more distributed computational
+environments.  Processing Control uses the Workload and Workflow Management
+tools to execute campaigns (applications of pipelines with specific
+configurations to sets of data) in an efficient, fault-tolerant manner while
+monitoring the state of execution.
+
+The substantial
+computational and bandwidth requirements of the LSST Data Management
+System (DMS) force the designs to be conscious of performance,
+scalability, and fault tolerance.
+
+Use cases for the Batch Production Services are given in \citeds{LDM-633} and requirements are defined in \citeds{LDM-636}.
+
+Figure~\ref{fig:mwandinfra} illustrates how various parts of the middleware
+interact with each other.
+
+\begin{figure}
+\centering
+\includegraphics[width=\textwidth]{images/MiddlewareInfrastructure.pdf}
+\caption{Data Management Middleware and Infrastructure}
+\label{fig:mwandinfra}
+\end{figure}
+
+\section{Workload/Workflow Management}\label{workload-workflow-management}
+
+The Workload and Workflow Management component provides management of the
+execution of science payloads ranging from a single pipeline to a series of
+``campaigns'', each consisting of multiple pipelines. Its services are able to
+handle massively distributed computing, executing jobs when their inputs become
+available and tracking their status and outputs. They ensure that the data
+needed for a job is accessible to it and that outputs (including log files, if
+any) are preserved. They can allocate work across multiple computing
+environments, in particular between NCSA and the Satellite Computing Facility
+at CC-IN2P3.
+
+This component invokes SuperTasks (section~\ref{supertask}) via Activators to
+sequence the execution of dataflow graphs across one or more distributed
+computational environments, in particular compute resources allocated via a
+batch computing service.
+
+\subsection{Batch Computing}\label{batch-computing}
+
+Batch computing occurs on LSST dedicated computing platforms at NCSA and
+CC-IN2P3 and potentially on other platforms. Resources other than local CPU and
+storage for computation, such as curation storage to hold final data products
+(the Data Backbone, section~\ref{data-backbone}) and network connectivity, are
+also needed to completely execute a pipeline and completely realize the data
+handling scheme for input and output datasets; the Workload and Workflow
+component utilizes these as well.
+
+Computing resources are physical items which are not always fit for use. They
+have scheduled and unscheduled downtimes and may have scheduled availability.
+The management of campaigns requires the detection of unscheduled downtimes of
+resources, recovery of executing pipelines affected by unscheduled downtimes,
+and arranging for the best use of available resources.
+
+One class of potential resources are opportunistic resources which may be very
+capacious but may not guarantee that jobs run to completion. These resources
+may be needed in contingency circumstances. The workload management system is
+capable of differentiating ``kills'' from other failures so as to enable use of
+these resources.
+
+\subsection{Workflow Management}\label{workflow-management}
+
+The Workflow Management service provides for orchestration and execution of
+pipelines.  Its basic functionality is as follows:
+\begin{itemize}
+	\item Pre-job context:
+		\begin{itemize}
+			\item Supports pre-handling of any input pipeline data sets when in-job context for input data is not required.
+			\item Pre-stages input data into a platform’s storage system, if available.
+			\item Produces condensed versions of database tables into portable lightweight format when required.
+			\item Deals with platform-specific edge services.
+			\item Handles identities and provides for local identity on the computing platforms.
+			\item Provides credentials and end-point information for any needed LSST services.
+		\end{itemize}
+	\item In-job context:
+		\begin{itemize}
+			\item Provides stage-in for any in-job pipeline input data sets.
+			\item Provides any Butler configurations necessarily provided from in-job context.
+			\item Invokes the pipeline and collects pipeline output status and other operational data.
+			\item Provides stage-out for pipeline output data sets when stage-out requires job context.
+		\end{itemize}
+	\item Post-job context:
+		\begin{itemize}
+			\item Ingests any designated data into database tables.
+			\item Arranges for any post-job stage out from cluster file systems.
+			\item Arranges for detailed ingest into custodial data systems.
+			\item Transmits job status to workload management.
+		\end{itemize}
+\end{itemize}
+
+The baseline design for the Workflow Management service uses a workflow tool
+such as Pegasus \citep{Pegasus} together with HTCondor \citep{HTCondor}, custom
+Activators, and Data Backbone interface scripts.
+
+\subsection{Workload Management}\label{workload-management}
+
+Workload Management considers the ensemble of available compute resources and
+the ensemble of campaigns to be executed and dispatches pipeline invocations to
+the Workload orchestration system based on resource availability and campaign
+priority.  It considers pipeline failures reported by the Workload
+orchestration system, distinguishing errors from computing resources and
+computational errors where possible, and arranges for incident reports and
+retrying failed invocations when appropriate.  It exposes the progress of each
+campaign to operations staff and monitoring systems, providing appropriate
+logging and events.
+
+The prototype for the software implementing this service is in GitHub repository \texttt{lsst-dm/ctrl\_bps}.
+
 
 \appendix
 % Include all the relevant bib files.
